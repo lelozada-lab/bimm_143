@@ -1,0 +1,212 @@
+---
+title: "HW_Class06"
+author: "Leslie Lozada TSN: 200321990"
+format: pdf
+editor: visual
+---
+
+## Section 1A: Improving R Code 
+
+```{r}
+df <- data.frame(
+  a = 1:10,
+  b = seq(200, 400, length=10),
+  c = 11:20,
+  d = NA
+)
+
+df
+```
+
+```{r}
+df$a <- (df$a - min(df$a)) / (max(df$a) - min(df$a))
+
+df$b <- (df$b - min(df$a)) / (max(df$b) - min(df$b))
+
+df$c <- (df$c - min(df$c)) / (max(df$c) - min(df$c))
+
+df$d <- (df$d - min(df$d)) / (max(df$a) - min(df$d))
+```
+
+
+> To work with original values, data frame is reset 
+
+```{r}
+normalize <- function(x) {
+
+  if (all(is.na(x))) {
+  return(rep(NA_real_, length(x)))
+  }
+  
+  # Find the minimum and maximum, ignoring missing values
+  min_value <- min(x, na.rm=TRUE)
+  max_value <- max(x, na.rm=TRUE)
+
+  # Return missing values if normalization is not possible
+  if (!is.finite(min_value) || !is.finite(max_value) ||
+      min_value == max_value) {
+    return(rep(NA_real_, length(x)))
+  }
+
+  # Normalize values between 0 and 1
+  result <- (x - min_value) / (max_value - min_value)
+
+  return(result)
+}
+```
+
+
+> Test run of funtion: 
+
+```{r}
+normalize(c(2, 4, 6))
+```
+
+```{r}
+df_normalized <- as.data.frame(lapply(df, normalize))
+
+df_normalized
+```
+
+> I created a normalization function to avoid repeating the same calculations for each column. The function scales numerical values between 0 and 1 and handles missing values. This makes the code easier to use and read. 
+
+
+## Section 1B: Protein Structure Analysis 
+
+```{r}
+library(bio3d)
+```
+
+
+```{r}
+
+s1 <- read.pdb("4AKE")
+s2 <- read.pdb("1AKE")
+s3 <- read.pdb("1E4Y")
+```
+
+```{r}
+s1.chainA <- trim.pdb(s1, chain="A", elety="CA")
+s2.chainA <- trim.pdb(s2, chain="A", elety="CA")
+s3.chainA <- trim.pdb(s3, chain="A", elety="CA")
+```
+
+
+```{r}
+s1.b <- s1.chainA$atom$b
+s2.b <- s2.chainA$atom$b
+s3.b <- s3.chainA$atom$b
+```
+
+
+```{r}
+head(s1.b)
+head(s2.b)
+head(s3.b)
+
+length(s1.b)
+length(s2.b)
+length(s3.b)
+```
+
+
+```{r}
+plotb3(s1.b, sse=s1.chainA, typ="l", ylab="Bfactor")
+plotb3(s2.b, sse=s2.chainA, typ="l", ylab="Bfactor")
+plotb3(s3.b, sse=s3.chainA, typ="l", ylab="Bfactor")
+```
+
+## Questions 1-5
+
+> **Q1.** What type of object is returned from `read.pdb()`?
+
+- The `read.pdb()`function returns a PDB object that has information about a protein structure like atomic coordinates. 
+
+> **Q2.** What does `trim.pdb()` do?
+
+- The `trim.pdb()` function selects specific parts of a protein structure. 
+
+> **Q3.** What input parameter would turn off the marginal black and gray rectangles, and what do they represent?
+
+- The `sse=NULL` input removes the black and gray rectangles representing secondary-structure regions. 
+
+>**Q4.** What would be a better plot to compare across the different proteins?
+
+- An overlapping line plot because the B-factor values would be displayed on the same graph. 
+
+>**Q5.** Which proteins are more similar in their B-factor trends, and how could you quantify this?
+
+```{r}
+length(s1.b)
+length(s2.b)
+length(s3.b)
+```
+
+Since all three vectors have the same length we will use the following: 
+
+```{r}
+hc <- hclust(dist(rbind(s1.b, s2.b, s3.b)))
+
+plot(hc)
+```
+
+- The proteins 1AKE and 1E4Y have most similar B-factor trends because they cluster together at a lower height in the graph. Their similarity can be quantified using `dist()` to calculate distances and `hclust()` to group proteins based on their B-factor values. 
+
+## Q6: How would you generalize the original code above to work with any set of input protein structures?
+
+```{r}
+
+library(bio3d)
+
+# Function 1: Analyze one protein
+# Input: A PDB ID and an optional chain ID.
+# Purpose: Read a protein structure and plot its B-factors.
+# Usage: plot_protein("4AKE")
+# Output: A B-factor plot for one protein.
+
+plot_protein <- function(pdb_id, chain = "A") {
+
+  # Read the protein structure
+  protein <- read.pdb(pdb_id)
+
+  # Select the chosen chain and alpha-carbon atoms
+  protein_chain <- trim.pdb(protein, chain = chain, elety = "CA")
+
+  # Extract B-factor values
+  b_values <- protein_chain$atom$b
+
+  # Create a B-factor plot
+  plotb3(b_values, sse = protein_chain,
+         typ = "l", ylab = "Bfactor")
+}
+
+# Function 2: Analyze multiple proteins
+# Input: A vector of PDB IDs and an optional chain ID.
+# Purpose: Generate plots for multiple protein structures.
+# Usage: plot_proteins(c("4AKE", "1AKE", "1E4Y"))
+# Output: A separate B-factor plot for each protein.
+
+plot_proteins <- function(pdb_ids, chain = "A") {
+
+  # Repeat the analysis for each PDB ID
+  for (id in pdb_ids) {
+
+    # Call the original function
+    plot_protein(id, chain = chain)
+  }
+}
+
+
+```
+
+Test function: 
+
+```{r}
+plot_protein("4AKE")
+plot_protein("1AKE")
+plot_protein("1E4Y")
+```
+
+> My function accepts a PDB ID. The `read.pdb()`function is used to retrieve a protein structure and `trim.pdb()` to select alpha-carbon atoms. Then, it extracts the B-factor values and creates a plot. This allows multiple proteins to be analyzed without repeating the same code.
+
+

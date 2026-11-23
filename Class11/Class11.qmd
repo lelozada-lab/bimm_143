@@ -1,0 +1,335 @@
+---
+title: "Class 11: AlphaFold Analysis"
+author: "Leslie Lozada TSN: 200321990"
+format: pdf
+editor: visual
+---
+
+## Background
+
+We ran 3 AlphaFold2 predictions,
+
+- HIV-PR_monomer
+- HIV-PR_dimer
+- My find-a-gene protein sequence
+
+Here we analyze the resulting models and make some diagnostic plots that inform on model realibility
+
+## HIV-PR_monomer
+
+### Read the AF models 
+
+```{r}
+list.files(path="HIVMonomer_94b4b",
+           full.names=F, 
+           pattern=".pdb")
+```
+
+```{r}
+pdb_files <- list.files(path="HIVMonomer_94b5b", 
+                        full.names=T,
+                        pattern=".pdb")
+```
+
+```{r}
+library(bio3d)
+
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+```
+
+### RMSD
+
+Calculate the RMSD of all models to each other (i.e pairwise RMSD)
+
+```{r}
+rd <- rmsd(pdbs, fit=T)
+```
+
+Draw a heatmap of these RMSD matrix values
+
+```{r}
+library(pheatmap)
+
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+
+### RMSF 
+
+Calculate RMSF- how far apart each amino acid is across all 5 Alphafold models
+
+```{r}
+rf <- rmsf(pdbs$xyz)
+
+plotb3(rf, sse=pdbs)
+abline(v=100, col="gray", ylab="RMSF")
+```
+
+### Residue Conservation 
+
+Read the AF MSA 
+
+```{r}
+aln_file <- list.files(path="HIVMonomer_94b5b",
+                       pattern=".a3m$",
+                        full.names = TRUE)
+#aln_file
+
+aln <- read.fasta(aln_file[1], to.upper = TRUE)
+```
+
+We can score residue conservation in the alignment with the `conserv()` function.
+
+```{r}
+sim <- conserv(aln)
+```
+
+Plot this result 
+
+```{r}
+plotb3(sim, type="h")
+```
+
+```{r}
+con <- consensus(aln, cutoff = 0.88)
+con$seq
+```
+
+For a final visualization of these functionally important sites we can map this conservation score to the Occupancy column of a PDB file for viewing in molecular viewer programs such as Mol*, PyMol, VMD, chimera etc.
+
+```{r}
+m1.pdb <- read.pdb(pdb_files[1])
+occ <- vec2resno(sim[1:99], m1.pdb$atom$resno)
+write.pdb(m1.pdb, o=occ, file="m1_conserv.pdb")
+```
+
+### AF scores (pLDDT & PAE score plots)
+
+The pLDDT scores are stored in the PDB models "B-factor" col and in a seperate JSON format file in the results directory. We can use either: 
+
+```{r}
+plotb3(pdbs$b[1,], typ="l", lwd=2)
+points(pdbs$b[2,], typ="l", col="red")
+points(pdbs$b[3,], typ="l", col="blue")
+points(pdbs$b[4,], typ="l", col="darkgreen")
+points(pdbs$b[5,], typ="l", col="orange")
+abline(v=100, col="gray")
+
+#plot(m1.pdb$atom$b[m1.pdb$calalpha], type="h")
+```
+
+## HIV-PR Dimer
+
+### Read the AF models 
+
+```{r}
+list.files(path="HIVDimer_23119_0",
+           full.names=F, 
+           pattern=".pdb")
+```
+
+```{r}
+pdb_files <- list.files(path="HIVDimer_23119_0", 
+                        full.names=T,
+                        pattern=".pdb")
+```
+
+```{r}
+library(bio3d)
+
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+```
+
+### RMSD
+
+Calculate the RMSD of all models to each other (i.e pairwise RMSD)
+
+```{r}
+rd <- rmsd(pdbs, fit=T)
+```
+
+Add a heatmap of these RMSD matrix values
+
+```{r}
+library(pheatmap)
+
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+
+\`\`\`
+
+### RMSF
+
+Calculate RMSF- how far apart each amino acid is across all 5 Alphafold models
+
+```{r}
+rf <- rmsf(pdbs$xyz)
+
+plotb3(rf, sse=pdbs)
+abline(v=100, col="gray", ylab="RMSF")
+```
+
+
+### Residue Conservation
+
+```{r}
+con <- consensus(aln, cutoff = 0.88)
+con$seq
+```
+For a final visualization of these functionally important sites we can map this conservation score to the Occupancy column of a PDB file for viewing in molecular viewer programs such as Mol*, PyMol, VMD, chimera etc.
+
+```{r}
+# Read the HIV protease dimer
+pdb_files <- list.files("HIVDimer_23119_0",
+                        pattern = "\\.pdb$",
+                        recursive = TRUE,
+                        full.names = TRUE)
+
+m1.pdb <- read.pdb(pdb_files[1])
+
+# Load the HIV alignment
+aln_file <- list.files("HIVMonomer_94b5b",
+                       pattern = "\\.a3m$",
+                       full.names = TRUE)
+
+aln_hiv <- read.fasta(aln_file[1], to.upper = TRUE)
+hiv_sim <- conserv(aln_hiv)
+
+# Remove gaps and get 99 conservation scores
+keep <- !aln_hiv$ali[1, ] %in% c("-", ".")
+hiv_sim_99 <- hiv_sim[keep]
+
+# Assign scores to both chains
+occ <- hiv_sim_99[m1.pdb$atom$resno]
+
+# Save the PDB
+write.pdb(m1.pdb, o = occ, file = "m1_conserv.pdb")
+
+```
+
+
+### AF Scores (pLDDT & PAE score plots)
+
+The pLDDT scores are stored in the PDB models "B-factor" col and in a separate JSON format file in the results directory. We can use either: 
+
+```{r}
+plotb3(pdbs$b[1,], typ="l", lwd=2)
+points(pdbs$b[2,], typ="l", col="red")
+points(pdbs$b[3,], typ="l", col="blue")
+points(pdbs$b[4,], typ="l", col="darkgreen")
+points(pdbs$b[5,], typ="l", col="orange")
+
+```
+
+## Find a gene project
+
+### Read the AF models
+
+```{r}
+list.files(path="find_a_gene_f85f6",
+           full.names=F, 
+           pattern=".pdb")
+```
+
+```{r}
+pdb_files <- list.files(path="find_a_gene_f85f6", 
+                        full.names=T,
+                        pattern=".pdb")
+```
+
+```{r}
+library(bio3d)
+
+pdbs <- pdbaln(pdb_files, fit=TRUE, exefile="msa")
+```
+
+### RMSD
+
+Calculate the RMSD of all models to each other (i.e pairwise RMSD)
+
+```{r}
+rd <- rmsd(pdbs, fit=T)
+```
+
+Add a heatmap of these RMSD matrix values: 
+
+```{r}
+library(pheatmap)
+
+colnames(rd) <- paste0("m",1:5)
+rownames(rd) <- paste0("m",1:5)
+pheatmap(rd)
+```
+
+
+### RMSF
+
+Calculate RMSF- how far apart each amino acid is across all 5 Alphafold models
+
+```{r}
+rf <- rmsf(pdbs$xyz)
+
+plotb3(rf, sse=pdbs)
+abline(v=100, col="gray", ylab="RMSF")
+```
+
+
+### Residue Conservation
+
+```{r}
+con <- consensus(aln, cutoff = 0.88)
+con$seq
+```
+
+For a final visualization of these functionally important sites we can map this conservation score to the Occupancy column of a PDB file for viewing in molecular viewer programs such as Mol*, PyMol, VMD, chimera etc.
+
+```{r}
+# Read the Find a Gene protein
+pdb_files <- list.files("find_a_gene_f85f6",
+                        pattern = "\\.pdb$",
+                        recursive = TRUE,
+                        full.names = TRUE)
+
+m1.pdb <- read.pdb(pdb_files[1])
+
+# Calculate conservation scores
+aln <- read.fasta("aln.fa")
+sim <- conserv(aln)
+
+aln_file <- list.files("HIVMonomer_94b5b",
+                       pattern = "\\.a3m$",
+                       full.names = TRUE)
+
+aln_hiv <- read.fasta(aln_file[1], to.upper = TRUE)
+hiv_sim <- conserv(aln_hiv)
+
+# Remove alignment gaps
+keep <- !aln$ali[1, ] %in% c("-", ".")
+sim_gene <- sim[keep]
+
+# Assign scores to the protein
+occ <- sim_gene[m1.pdb$atom$resno]
+
+# Check for missing scores
+stopifnot(!anyNA(occ))
+
+# Save the PDB
+write.pdb(m1.pdb, o = occ, file = "gene_conserv.pdb")
+```
+
+
+### pLDDT & PAE score plots
+
+The pLDDT scores are stored in the PDB models "B-factor" col and in a seperate JSON format file in the results directory. We can use either: 
+
+```{r}
+plotb3(pdbs$b[1,], typ="l", lwd=2)
+points(pdbs$b[2,], typ="l", col="red")
+points(pdbs$b[3,], typ="l", col="blue")
+points(pdbs$b[4,], typ="l", col="darkgreen")
+points(pdbs$b[5,], typ="l", col="orange")
+```
+

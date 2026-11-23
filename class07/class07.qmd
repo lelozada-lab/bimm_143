@@ -1,0 +1,354 @@
+---
+title: "Class 7: Machine Learning 1"
+author: "Leslie Lozada TSN: 200321990"
+format: pdf
+editor: visual
+---
+
+## Background 
+
+Today we will explore some core machine learning methods that are very popular in bioinformatics. These include **clustering** and **dimensionality reduction**. 
+
+## K-means 
+
+The main function in "base R" for K-means clusterring is called `kmeans()`
+
+Before we go too deep let's make up some "simple" data that we can cluster and know if we are getting good results or not. To do this we can use the `rnorm()`function: 
+
+```{r}
+rnorm(10)
+```
+
+```{r}
+hist(rnorm(10000))
+```
+
+Give me 30 points centered at -3 and a second set with a mean of +3
+
+
+```{r}
+tmp <- c(rnorm(30, mean=-3), rnorm(30, mean=+3)) 
+
+x <- cbind(x=tmp, y=rev(tmp))
+x
+```
+
+```{r}
+plot(x)
+```
+
+Now try `kmeans()` on this input data `x`
+
+```{r}
+k <- kmeans(x, centers =2)
+k
+```
+
+To get to the results we can use `k$size` etc. to access each component result: 
+
+> Q. How many points are in each cluster? 
+
+```{r}
+k$size
+```
+
+> Q. What "component" of your results object details clustering membership? 
+
+```{r}
+k$cluster
+```
+
+> Q. What "component" of your results object details cluster centers? 
+
+```{r}
+k$centers
+```
+
+> Q. Make a results figure of our data with points colored by cluster along with cluster centers? 
+
+```{r}
+plot(x, col=c("pink", "purple"))
+```
+
+```{r}
+plot(x, col=k$cluster) + 
+  points(k$centers, col="purple", pch=15)
+```
+
+> Q. Run 'kmeans` again and cluster into 4 clusters producing a results figure with points colored by cluster and showing the cluster centers? 
+
+```{r}
+k4 <- kmeans(x, centers = 4)
+
+plot(x, col=k4$cluster) + 
+  points(k4$centers, col="purple", pch=15) 
+```
+
+
+> **N.B.** You need to tell K-means the number of clusters (i.e. set `centers=2`)!! 
+
+
+One approach is to try different values for `centers` and pick the best one: 
+
+```{r}
+ans <- NULL 
+
+for(i in 1:10) {
+  #cat(i, "\n")
+  km <- kmeans(x, centers = i)
+  ans <- c(ans, km$tot.withinss)
+}
+```
+
+
+```{r}
+plot(ans, typ="o", xlab="Number of Clusters", ylab="Total Sum of Square Distance")
+```
+
+
+## Hierarchical Clustering 
+
+The main function in "base" R for hierarchical clustering is called `hclust()`
+
+This function does not take your "raw" data for clustering. You must first build a "distance matrix" from your data and pass this as input for `hclust()`.
+
+```{r}
+d <- dist(x)
+
+hc <- hclust(d)
+
+hc
+```
+
+```{r}
+plot(hc)
+abline(h=8, col="red")
+```
+
+
+Once we have our `hclust()` object ("tree" or "cluster dendogram") we can "cut" the tree to reveal the clustering pattern: 
+
+```{r}
+cutree(hc, h=8)
+```
+
+You can use either `h=` or `k=` arguments to `cutree()`
+
+```{r}
+grp <- cutree(hc, k=4)
+```
+
+> Q. Make a plot of input data `x` with your clusters from `hclust()` (i.e. colored by cluster membership from cutting the tree)? 
+
+```{r}
+grp <- cutree(hc, h=8)
+```
+
+## Principal Component Analysis (PCA)
+
+PCA is a dimensionality reduction technique method that is popular for revealing patterns in complex datasets.
+
+### Analysis of UK food data 
+
+Let's look at some data on eating habits of folks from the UK to see if there are patterns and trends that have some regions being distinct from others. 
+
+### Data import 
+
+The data is made available in CSV format so we can use `read.csv()`: 
+
+```{r}
+x <- read.csv("https://tinyurl.com/UK-foods", row.names=1)
+x
+```
+
+> Q1. How many rows and columns are in your new data frame named x? What R functions could you use to answer this questions?
+
+```{r}
+nrow(x)
+ncol(x)
+```
+
+The data frame has 17 rows and 4 columns. The function nrow(x) gives the number of rows, while ncol(x) gives the number of columns.
+
+> Q2.  Which approach to solving the ‘row-names problem’ mentioned above do you prefer and why? Is one approach more robust than another under certain circumstances?
+
+- The second method is preferred because it is more simple and requires less code. It automatically assigns the first column as row names when importing the data. This approach is more reliable when we know the first column contains row names. However, the first approach is useful when we need to inspect the data before making changes. 
+
+Some plots: 
+
+```{r}
+barplot(as.matrix(x), beside=T, col=rainbow(nrow(x)))
+```
+
+> Q3: Changing what optional argument in the above barplot() function results in the following plot?
+
+```{r}
+barplot(as.matrix(x), beside=F, col=rainbow(nrow(x)))
+```
+
+Some plots: 
+```{r}
+library(tidyr)
+
+# Convert data to long format for ggplot with `pivot_longer()`
+x_long <- x |> 
+          tibble::rownames_to_column("Food") |> 
+          pivot_longer(cols = -Food, 
+                       names_to = "Country", 
+                       values_to = "Consumption")
+
+dim(x_long)
+```
+
+```{r}
+# Create grouped bar plot
+library(ggplot2)
+```
+
+```{r}
+ggplot(x_long) +
+  aes(x = Country, y = Consumption, fill = Food) +
+  geom_col(position = "dodge") +
+  theme_bw()
+```
+
+> Q4. Changing what optional argument in the above ggplot() code results in a stacked barplot figure?
+
+```{r}
+ggplot(x_long) +
+  aes(x = Country, y = Consumption, fill = Food) +
+  geom_col(position = "stack") +
+  theme_bw()
+```
+
+- Changing the position argument in geom_col() from "dodge" to "stack" creates a stacked bar plot instead of placing the bars side by side. 
+
+### Pairs plots and heatmaps
+
+> Q5. We can use the pairs() function to generate all pairwise plots for our countries. Can you make sense of the following code and resulting figure? What does it mean if a given point lies on the diagonal for a given plot?
+
+One plot that can be useful for small datasets is a `pairs()` plot. 
+
+```{r}
+pairs(x, col=rainbow(nrow(x)), pch=16)
+```
+
+- The pairs() function creates scatterplots comparing food consumption between the four countries. The plots show a positive relationship, meaning that food types with higher consumption in one country generally have higher consumption in another. If a point lies on the diagonal line, it means that the two countries have equal consumption values for that food type.
+
+
+Given that it is quite difficult to make sense of even this relatively small data set. Hopefully, we can clearly see that a powerful analytical method is absolutely necessary if we wish to observe trends and patterns in larger datasets.
+
+Another useful visualization approach: 
+
+```{r}
+library(pheatmap)
+
+pheatmap( as.matrix(x) )
+```
+
+> Q6. Based on the pairs and heatmap figures, which countries cluster together and what does this suggest about their food consumption patterns? Can you easily tell what the main differences between N. Ireland and the other countries of the UK in terms of this data-set?
+
+- England and Wales have the most similar food consumption patterns, with Scotland also being fairly similar. Northern Ireland is the most different. It appears to consume less of some foods, like alcoholic drinks and fresh vegetables, but more fresh potatoes. However, it is difficult to tell all the differences just from the graphs.
+
+> **Key-point**: Even relatively small datasets can prove challenging to interpret 
+
+## PCA to the rescue! 
+
+The main function in "base" R for PCA is called `prcomp()`: 
+
+This function will require the transpose of our dataset
+
+```{r}
+pca <- prcomp(t(x))
+```
+
+We can see how well out PCA results are doing in terms of the *variance captured* form the origional data in each PC. 
+
+```{r}
+summary(pca)
+```
+
+I can see what is in my `pca` result object by: 
+```{r}
+attributes(pca)
+```
+
+Of these `pca$x` is out main result. We can use it to make a result figure often called a PCA plot (or score-plot). 
+
+```{r}
+pca$x
+```
+> Q7. Complete the code below to generate a plot of PC1 vs PC2. The second line adds text labels over the data points.
+
+```{r}
+# Create a data frame for plotting
+df <- as.data.frame(pca$x)
+df$Country <- rownames(df)
+
+# Plot PC1 vs PC2 with ggplot
+ggplot(pca$x) +
+  aes(x = PC1, y = PC2, label = rownames(pca$x)) +
+  geom_point(size = 3) +
+  geom_text(vjust = -0.5) +
+  xlim(-270, 500) +
+  xlab("PC1") +
+  ylab("PC2") +
+  theme_bw()
+```
+
+> Q8. Customize your plot so that the colors of the country names match the colors in our UK and Ireland map and table at start of this document.
+
+```{r}
+library(ggplot2)
+
+df <- as.data.frame(pca$x)
+df$Country <- rownames(df)
+
+ggplot(df) +
+  aes(x = PC1, y = PC2, label = Country) +
+  geom_point(color = "grey") +
+  geom_text(aes(color = Country), vjust = -0.5) +
+  scale_color_manual(values = c(
+    "England" = "orange",
+    "Wales" = "red",
+    "Scotland" = "blue",
+    "N.Ireland" = "darkgreen"
+  )) +
+  xlim(-270, 500) +
+  xlab("PC1") +
+  ylab("PC2") +
+  theme_bw()
+```
+
+## Digging Deeper (variable loadings)
+
+A "loadings" plot can show us how the origional dimensions contribute to our new PC axis. This is detailed in the `pca$rotation` component of our result object: 
+
+```{r}
+pca$rotation
+```
+
+```{r}
+ggplot(pca$rotation) + 
+  aes(PC1, row.names(pca$rotation))+ 
+  geom_col()
+```
+
+> Q9: Generate a similar ‘loadings plot’ for PC2. What two food groups feature prominantely and what does PC2 maninly tell us about?
+
+```{r}
+ggplot(pca$rotation) +
+  aes(x = PC2,
+      y = reorder(rownames(pca$rotation), PC2)) +
+  geom_col(fill = "steelblue") +
+  xlab("PC2") +
+  ylab("") +
+  theme_bw() +
+  theme(axis.text.y = element_text(size = 9))
+```
+
+- The two main food groups are fresh potatoes and soft drinks. PC2 mainly shows the differences in consumption of these foods between countries, especially how Scotland differs from the others. 
+
+
+
+
